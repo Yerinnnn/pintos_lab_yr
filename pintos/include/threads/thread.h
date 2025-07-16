@@ -13,20 +13,20 @@
 enum thread_status
 {
 	THREAD_RUNNING, /* Running thread. */
-	THREAD_READY,	/* Not running but ready to run. */
+	THREAD_READY,		/* Not running but ready to run. */
 	THREAD_BLOCKED, /* Waiting for an event to trigger. */
-	THREAD_DYING	/* About to be destroyed. */
+	THREAD_DYING		/* About to be destroyed. */
 };
 
 /* Thread identifier type.
-   You can redefine this to whatever type you like. */
+	 You can redefine this to whatever type you like. */
 typedef int tid_t;
 #define TID_ERROR ((tid_t) - 1) /* Error value for tid_t. */
 
 /* Thread priorities. */
-#define PRI_MIN 0	   /* Lowest priority. */
+#define PRI_MIN 0			 /* Lowest priority. */
 #define PRI_DEFAULT 31 /* Default priority. */
-#define PRI_MAX 63	   /* Highest priority. */
+#define PRI_MAX 63		 /* Highest priority. */
 
 /* A kernel thread or user process.
  *
@@ -117,10 +117,11 @@ thread_current()는 실행 중인 스레드의 struct thread 내 magic 멤버가
 struct thread
 {
 	/* Owned by thread.c. */
-	tid_t tid;				   /* Thread identifier. */
+	tid_t tid;								 /* Thread identifier. */
 	enum thread_status status; /* Thread state. */
-	char name[16];			   /* Name (for debugging purposes). */
-	int priority;			   /* Priority. */
+	char name[16];						 /* Name (for debugging purposes). */
+	int priority;							 /* Priority. */
+	int effective_priority;
 	int64_t tick;
 
 	/* Shared between thread.c and synch.c. */
@@ -137,12 +138,12 @@ struct thread
 
 	/* Owned by thread.c. */
 	struct intr_frame tf; /* Information for switching */
-	unsigned magic;		  /* Detects stack overflow. */
+	unsigned magic;				/* Detects stack overflow. */
 };
 
 /* If false (default), use round-robin scheduler.
-   If true, use multi-level feedback queue scheduler.
-   Controlled by kernel command-line option "-o mlfqs". */
+	 If true, use multi-level feedback queue scheduler.
+	 Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
 
 void thread_init(void);
@@ -153,6 +154,10 @@ void thread_print_stats(void);
 
 typedef void thread_func(void *aux);
 tid_t thread_create(const char *name, int priority, thread_func *, void *);
+
+bool priority_high_cmp(const struct list_elem *a,
+											 const struct list_elem *b,
+											 void *aux UNUSED);
 
 void thread_block(void);
 void thread_unblock(struct thread *);
