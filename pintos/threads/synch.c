@@ -64,11 +64,15 @@ sema_down (struct semaphore *sema) {
 	ASSERT (sema != NULL);
 	ASSERT (!intr_context ());
 
-	old_level = intr_disable ();
-	while (sema->value == 0) {
-		list_push_back (&sema->waiters, &thread_current ()->elem);
-		thread_block ();
+	old_level = intr_disable();
+// 락이 이미 사용 중일 경우
+	while (sema->value == 0)
+	{
+		// 		list_push_back(&sema->waiters, &thread_current()->elem);
+		list_insert_ordered(&sema->waiters, &thread_current()->elem, priority_high_cmp, NULL);
+		thread_block();
 	}
+// 락이 사용 가능할 경우 (lock->semaphore.value == 1)
 	sema->value--;
 	intr_set_level (old_level);
 }
@@ -113,7 +117,8 @@ sema_up (struct semaphore *sema) {
 		thread_unblock (list_entry (list_pop_front (&sema->waiters),
 					struct thread, elem));
 	sema->value++;
-	intr_set_level (old_level);
+thread_yield();
+	intr_set_level(old_level);
 }
 
 static void sema_test_helper (void *sema_);
