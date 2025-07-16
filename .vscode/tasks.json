@@ -1,0 +1,17 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "make pintos",
+      "type": "shell",
+      "command": "make",
+      "options": {
+        "cwd": "${workspaceRoot}/pintos/threads/build"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "always"
+      }
+    },
+  ]
+}
