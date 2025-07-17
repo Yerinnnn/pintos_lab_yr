@@ -105,6 +105,7 @@ struct list
 /* LIST_ELEM이라는 리스트 요소 포인터를, 해당 리스트 요소가 내장된(embedded) 외부 구조체(outer structure)의 포인터로 변환합니다.
    이를 위해 외부 구조체의 이름 STRUCT와 리스트 요소의 멤버 이름 MEMBER를 제공해야 합니다.
    예시는 파일 상단에 있는 큰 주석을 참조하십시오. */
+// 리스트 요소(struct list_elem)의 포인터로부터, 그 리스트 요소가 포함된 더 큰 구조체(예: struct thread, struct semaphore_elem)의 포인터를 얻어냄
 #define list_entry(LIST_ELEM, STRUCT, MEMBER) \
    ((STRUCT *)((uint8_t *)&(LIST_ELEM)->next - offsetof(STRUCT, MEMBER.next)))
 

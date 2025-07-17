@@ -43,12 +43,12 @@ static struct lock tid_lock;
 static struct list destruction_req;
 
 /* Statistics. */
-static long long idle_ticks;   /* # of timer ticks spent idle. */
+static long long idle_ticks;	 /* # of timer ticks spent idle. */
 static long long kernel_ticks; /* # of timer ticks in kernel threads. */
-static long long user_ticks;   /* # of timer ticks in user programs. */
+static long long user_ticks;	 /* # of timer ticks in user programs. */
 
 /* Scheduling. */
-#define TIME_SLICE 4		  /* # of timer ticks to give each thread. */
+#define TIME_SLICE 4					/* # of timer ticks to give each thread. */
 static unsigned thread_ticks; /* # of timer ticks since last yield. */
 
 /* If false (default), use round-robin scheduler.
@@ -65,8 +65,8 @@ static void do_schedule(int status);
 static void schedule(void);
 static tid_t allocate_tid(void);
 bool priority_high_cmp(const struct list_elem *a,
-					   const struct list_elem *b,
-					   void *aux UNUSED);
+											 const struct list_elem *b,
+											 void *aux UNUSED);
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -104,8 +104,8 @@ void thread_init(void)
 	 * This gdt does not include the user context.
 	 * The kernel will rebuild the gdt with user context, in gdt_init (). */
 	struct desc_ptr gdt_ds = {
-		.size = sizeof(gdt) - 1,
-		.address = (uint64_t)gdt};
+			.size = sizeof(gdt) - 1,
+			.address = (uint64_t)gdt};
 	lgdt(&gdt_ds);
 
 	/* Init the globla thread context */
@@ -164,7 +164,7 @@ void thread_tick(void)
 void thread_print_stats(void)
 {
 	printf("Thread: %lld idle ticks, %lld kernel ticks, %lld user ticks\n",
-		   idle_ticks, kernel_ticks, user_ticks);
+				 idle_ticks, kernel_ticks, user_ticks);
 }
 
 /* Creates a new kernel thread named NAME with the given initial
@@ -183,7 +183,7 @@ void thread_print_stats(void)
 	 PRIORITY, but no actual priority scheduling is implemented.
 	 Priority scheduling is the goal of Problem 1-3. */
 tid_t thread_create(const char *name, int priority,
-					thread_func *function, void *aux)
+										thread_func *function, void *aux)
 {
 	struct thread *t;
 	tid_t tid;
@@ -214,7 +214,7 @@ tid_t thread_create(const char *name, int priority,
 	thread_unblock(t);
 
 	/* 현재 실행 중인 스레드와 새로 삽입된 스레드의 우선순위를 비교합니다.
-	   새로 도착한 스레드의 우선순위가 더 높으면 CPU를 양보합니다. */
+		 새로 도착한 스레드의 우선순위가 더 높으면 CPU를 양보합니다. */
 	// 이 부분에 우선순위 비교 및 schedule() 호출 로직을 추가해야 합니다.
 	if (t->priority > thread_current()->priority && !intr_context())
 	{
@@ -239,10 +239,10 @@ tid_t thread_create(const char *name, int priority,
 	 사용하는 것이 더 좋은 방법이다. */
 void thread_block(void)
 {
-	ASSERT(!intr_context());				   // 인터럽트 핸들러 내부에서 호출되지 않았는지 확인
-	ASSERT(intr_get_level() == INTR_OFF);	   // 인터럽트가 꺼진 상태인지 확인
+	ASSERT(!intr_context());									 // 인터럽트 핸들러 내부에서 호출되지 않았는지 확인
+	ASSERT(intr_get_level() == INTR_OFF);			 // 인터럽트가 꺼진 상태인지 확인
 	thread_current()->status = THREAD_BLOCKED; // 현재 스레드 상태를 BLOCKED로 설정
-	schedule();								   // 스케줄러를 호출하여 다음 스레드로 전환
+	schedule();																 // 스케줄러를 호출하여 다음 스레드로 전환
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -318,8 +318,8 @@ void thread_exit(void)
 
 /* thread->priority 값을 기준으로 비교하는 함수 */
 bool priority_high_cmp(const struct list_elem *a,
-					   const struct list_elem *b,
-					   void *aux UNUSED)
+											 const struct list_elem *b,
+											 void *aux UNUSED)
 {
 	// list_entry() 매크로
 	// 리스트 요소(struct list_elem)로부터, 진짜 구조체(struct thread 등)의 주소를 역으로 계산해서 가져오는 매크로
@@ -330,8 +330,8 @@ bool priority_high_cmp(const struct list_elem *a,
 
 /* thread->tick 값을 기준으로 비교하는 함수 */
 bool wakeup_cmp(const struct list_elem *a,
-				const struct list_elem *b,
-				void *aux UNUSED)
+								const struct list_elem *b,
+								void *aux UNUSED)
 {
 	// list_entry() 매크로
 	// 리스트 요소(struct list_elem)로부터, 진짜 구조체(struct thread 등)의 주소를 역으로 계산해서 가져오는 매크로
@@ -430,7 +430,7 @@ void thread_set_priority(int new_priority)
 	struct thread *curr = thread_current();
 	int old_priority = curr->priority;
 	curr->priority = new_priority;
-	
+
 	if (!list_empty(&ready_list))
 	{
 		struct thread *highest_ready = list_entry(list_front(&ready_list), struct thread, elem);
@@ -560,28 +560,28 @@ next_thread_to_run(void)
 void do_iret(struct intr_frame *tf)
 {
 	__asm __volatile(
-		"movq %0, %%rsp\n"
-		"movq 0(%%rsp),%%r15\n"
-		"movq 8(%%rsp),%%r14\n"
-		"movq 16(%%rsp),%%r13\n"
-		"movq 24(%%rsp),%%r12\n"
-		"movq 32(%%rsp),%%r11\n"
-		"movq 40(%%rsp),%%r10\n"
-		"movq 48(%%rsp),%%r9\n"
-		"movq 56(%%rsp),%%r8\n"
-		"movq 64(%%rsp),%%rsi\n"
-		"movq 72(%%rsp),%%rdi\n"
-		"movq 80(%%rsp),%%rbp\n"
-		"movq 88(%%rsp),%%rdx\n"
-		"movq 96(%%rsp),%%rcx\n"
-		"movq 104(%%rsp),%%rbx\n"
-		"movq 112(%%rsp),%%rax\n"
-		"addq $120,%%rsp\n"
-		"movw 8(%%rsp),%%ds\n"
-		"movw (%%rsp),%%es\n"
-		"addq $32, %%rsp\n"
-		"iretq"
-		: : "g"((uint64_t)tf) : "memory");
+			"movq %0, %%rsp\n"
+			"movq 0(%%rsp),%%r15\n"
+			"movq 8(%%rsp),%%r14\n"
+			"movq 16(%%rsp),%%r13\n"
+			"movq 24(%%rsp),%%r12\n"
+			"movq 32(%%rsp),%%r11\n"
+			"movq 40(%%rsp),%%r10\n"
+			"movq 48(%%rsp),%%r9\n"
+			"movq 56(%%rsp),%%r8\n"
+			"movq 64(%%rsp),%%rsi\n"
+			"movq 72(%%rsp),%%rdi\n"
+			"movq 80(%%rsp),%%rbp\n"
+			"movq 88(%%rsp),%%rdx\n"
+			"movq 96(%%rsp),%%rcx\n"
+			"movq 104(%%rsp),%%rbx\n"
+			"movq 112(%%rsp),%%rax\n"
+			"addq $120,%%rsp\n"
+			"movw 8(%%rsp),%%ds\n"
+			"movw (%%rsp),%%es\n"
+			"addq $32, %%rsp\n"
+			"iretq"
+			: : "g"((uint64_t)tf) : "memory");
 }
 
 /* Switching the thread by activating the new thread's page
@@ -607,50 +607,50 @@ thread_launch(struct thread *th)
 	 * Note that, we SHOULD NOT use any stack from here
 	 * until switching is done. */
 	__asm __volatile(
-		/* Store registers that will be used. */
-		"push %%rax\n"
-		"push %%rbx\n"
-		"push %%rcx\n"
-		/* Fetch input once */
-		"movq %0, %%rax\n"
-		"movq %1, %%rcx\n"
-		"movq %%r15, 0(%%rax)\n"
-		"movq %%r14, 8(%%rax)\n"
-		"movq %%r13, 16(%%rax)\n"
-		"movq %%r12, 24(%%rax)\n"
-		"movq %%r11, 32(%%rax)\n"
-		"movq %%r10, 40(%%rax)\n"
-		"movq %%r9, 48(%%rax)\n"
-		"movq %%r8, 56(%%rax)\n"
-		"movq %%rsi, 64(%%rax)\n"
-		"movq %%rdi, 72(%%rax)\n"
-		"movq %%rbp, 80(%%rax)\n"
-		"movq %%rdx, 88(%%rax)\n"
-		"pop %%rbx\n" // Saved rcx
-		"movq %%rbx, 96(%%rax)\n"
-		"pop %%rbx\n" // Saved rbx
-		"movq %%rbx, 104(%%rax)\n"
-		"pop %%rbx\n" // Saved rax
-		"movq %%rbx, 112(%%rax)\n"
-		"addq $120, %%rax\n"
-		"movw %%es, (%%rax)\n"
-		"movw %%ds, 8(%%rax)\n"
-		"addq $32, %%rax\n"
-		"call __next\n" // read the current rip.
-		"__next:\n"
-		"pop %%rbx\n"
-		"addq $(out_iret -  __next), %%rbx\n"
-		"movq %%rbx, 0(%%rax)\n" // rip
-		"movw %%cs, 8(%%rax)\n"	 // cs
-		"pushfq\n"
-		"popq %%rbx\n"
-		"mov %%rbx, 16(%%rax)\n" // eflags
-		"mov %%rsp, 24(%%rax)\n" // rsp
-		"movw %%ss, 32(%%rax)\n"
-		"mov %%rcx, %%rdi\n"
-		"call do_iret\n"
-		"out_iret:\n"
-		: : "g"(tf_cur), "g"(tf) : "memory");
+			/* Store registers that will be used. */
+			"push %%rax\n"
+			"push %%rbx\n"
+			"push %%rcx\n"
+			/* Fetch input once */
+			"movq %0, %%rax\n"
+			"movq %1, %%rcx\n"
+			"movq %%r15, 0(%%rax)\n"
+			"movq %%r14, 8(%%rax)\n"
+			"movq %%r13, 16(%%rax)\n"
+			"movq %%r12, 24(%%rax)\n"
+			"movq %%r11, 32(%%rax)\n"
+			"movq %%r10, 40(%%rax)\n"
+			"movq %%r9, 48(%%rax)\n"
+			"movq %%r8, 56(%%rax)\n"
+			"movq %%rsi, 64(%%rax)\n"
+			"movq %%rdi, 72(%%rax)\n"
+			"movq %%rbp, 80(%%rax)\n"
+			"movq %%rdx, 88(%%rax)\n"
+			"pop %%rbx\n" // Saved rcx
+			"movq %%rbx, 96(%%rax)\n"
+			"pop %%rbx\n" // Saved rbx
+			"movq %%rbx, 104(%%rax)\n"
+			"pop %%rbx\n" // Saved rax
+			"movq %%rbx, 112(%%rax)\n"
+			"addq $120, %%rax\n"
+			"movw %%es, (%%rax)\n"
+			"movw %%ds, 8(%%rax)\n"
+			"addq $32, %%rax\n"
+			"call __next\n" // read the current rip.
+			"__next:\n"
+			"pop %%rbx\n"
+			"addq $(out_iret -  __next), %%rbx\n"
+			"movq %%rbx, 0(%%rax)\n" // rip
+			"movw %%cs, 8(%%rax)\n"	 // cs
+			"pushfq\n"
+			"popq %%rbx\n"
+			"mov %%rbx, 16(%%rax)\n" // eflags
+			"mov %%rsp, 24(%%rax)\n" // rsp
+			"movw %%ss, 32(%%rax)\n"
+			"mov %%rcx, %%rdi\n"
+			"call do_iret\n"
+			"out_iret:\n"
+			: : "g"(tf_cur), "g"(tf) : "memory");
 }
 
 /* Schedules a new process. At entry, interrupts must be off.
@@ -664,7 +664,7 @@ thread_launch(struct thread *th)
 static void
 do_schedule(int status)
 {
-	ASSERT(intr_get_level() == INTR_OFF);				// 인터럽트가 꺼져 있어야 함
+	ASSERT(intr_get_level() == INTR_OFF);								// 인터럽트가 꺼져 있어야 함
 	ASSERT(thread_current()->status == THREAD_RUNNING); // 현재 스레드는 실행 중이어야 함
 
 	// destruction_req 리스트가 비어있지 않다면
@@ -672,7 +672,7 @@ do_schedule(int status)
 	{
 		// 리스트에서 제거할 스레드를 하나 꺼냄
 		struct thread *victim =
-			list_entry(list_pop_front(&destruction_req), struct thread, elem);
+				list_entry(list_pop_front(&destruction_req), struct thread, elem);
 		// 해당 스레드의 메모리를 해제
 		palloc_free_page(victim);
 	}
