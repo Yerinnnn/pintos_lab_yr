@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <syscall-nr.h>
 
+#include "include/filesys/file.h"
 #include "include/filesys/filesys.h"
 #include "intrinsic.h"
 #include "lib/kernel/console.h"
@@ -120,6 +121,12 @@ void syscall_handler(struct intr_frame *f UNUSED)
                     break;
                 }
             }
+        }
+        case SYS_FILESIZE:
+        {
+            struct file *current_file = process_get_file(f->R.rdi);
+            f->R.rax = file_length(current_file);
+            break;
         }
         case SYS_WRITE:
         {
