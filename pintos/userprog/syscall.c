@@ -128,6 +128,21 @@ void syscall_handler(struct intr_frame *f UNUSED)
             f->R.rax = file_length(current_file);
             break;
         }
+        case SYS_READ:
+        {
+            struct thread *current_thread = thread_current();
+
+            if (!is_fd_readable(f->R.rdi) ||
+                check_bad_addr(f->R.rsi, current_thread) == NULL)
+            {
+                current_thread->tf.R.rax = -1;
+                thread_exit();
+            }
+
+            struct file *current_file = process_get_file(f->R.rdi);
+            f->R.rax = file_read(current_file, f->R.rsi, f->R.rdx);
+            break;
+        }
         case SYS_WRITE:
         {
             // 인터럽트 프레임(struct intr_frame *f)을 통해 사용자
