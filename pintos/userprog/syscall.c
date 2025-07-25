@@ -193,7 +193,7 @@ static int write_handler(int fd, const void *buffer, unsigned size)
     }
 
     switch (fd)
-        {
+    {
         case 1:
             putbuf(buffer, size);
             break;
