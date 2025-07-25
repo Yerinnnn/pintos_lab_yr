@@ -130,9 +130,11 @@ void syscall_handler(struct intr_frame *f UNUSED)
         }
         case SYS_WRITE:
         {
-            // 인터럽트 프레임(struct intr_frame *f)을 통해 사용자 프로그램의
-            // 레지스터 상태와 시스템 콜 번호 및 인자들을 읽어옴 f->R.rax :
-            // 시스템 콜 반환값 (리턴값 저장) f->R.rdi : 첫 번째 인자 (fd)
+            // 인터럽트 프레임(struct intr_frame *f)을 통해 사용자
+            // 프로그램의 레지스터 상태와 시스템 콜 번호 및 인자들을 읽어옴
+            // f->R.rax : 시스템 콜 반환값 (리턴값 저장)
+            // f->R.rdi : 첫 번째 인자 (fd)
+
             // f->R.rsi : 두 번째 인자 (buffer)
             // f->R.rdx : 세 번째 인자 (size)
             f->R.rax = write_handler(f->R.rdi, f->R.rsi, f->R.rdx);
@@ -161,19 +163,31 @@ static int write_handler(int fd, const void *buffer, unsigned size)
     // {
     //     thread_exit();
 
-    // buffer를 fd에 쓰기
-    if (is_user_vaddr(buffer) && is_user_vaddr(buffer + size))
+    struct thread *current_thread = thread_current();
+
+    if (!is_fd_writable(fd) || check_bad_addr(buffer, current_thread) == NULL)
     {
-        if (fd == 1)  // fd가 1이면 표준 출력 (파일이 아니라 콘솔로 출력)
+        current_thread->tf.R.rax = -1;
+        thread_exit();
+    }
+
+    // buffer를 fd에 쓰기
+    if (!(is_user_vaddr(buffer) && is_user_vaddr(buffer + size)))
+    {
+        return -1;
+    }
+
+    switch (fd)
         {
+        case 1:
             putbuf(buffer, size);
-        }
-        else if (fd > 2)  // open()으로 연 파일이 할당된 경우
-        {
+            break;
+
+        default:
             struct file *file = process_get_file(fd);
             if (file == NULL) return -1;
             return file_write(file, buffer, size);
-        }
+            break;
     }
 
     return -1;
