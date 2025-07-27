@@ -10,12 +10,14 @@
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "include/threads/mmu.h"
 #include "intrinsic.h"
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/mmu.h"
 #include "threads/palloc.h"
+#include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/gdt.h"
@@ -43,6 +45,13 @@ static void process_init(void)
  * before process_create_initd() returns. Returns the initd's
  * thread id, or TID_ERROR if the thread cannot be created.
  * Notice that THIS SHOULD BE CALLED ONCE. */
+/*
+ * FILE_NAME으로부터 로드된 "initd"라고 불리는 첫 번째 유저랜드(사용자 영역)
+ * 프로그램을 시작합니다. 새로운 스레드는 process_create_initd()가 반환되기
+ * 전에 스케줄링될 수 있으며 (심지어 종료될 수도 있습니다). initd의 스레드 ID를
+ * 반환하거나, 스레드를 생성할 수 없는 경우 TID_ERROR를 반환합니다. 이 함수는 단
+ * 한 번만 호출되어야 함에 유의하십시오.
+ */
 tid_t process_create_initd(const char *file_name)
 {
     char *fn_copy;
@@ -78,9 +87,12 @@ static void initd(void *f_name)
 
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
+/* 현재 프로세스를 name으로 복제합니다. 새 프로세스의 스레드 ID를 반환하거나,
+ * 스레드를 생성할 수 없는 경우 TID_ERROR를 반환합니다. */
 tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED)
 {
     /* Clone current thread to new thread.*/
+    /* thread_current()는 부모 스레드 */
     return thread_create(name, PRI_DEFAULT, __do_fork, thread_current());
 }
 
@@ -96,23 +108,44 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux)
     bool writable;
 
     /* 1. TODO: If the parent_page is kernel page, then return immediately. */
+    if (is_kernel_vaddr(va))
+    {
+        return true;
+    }
 
     /* 2. Resolve VA from the parent's page map level 4. */
+    /* 부모 프로세스의 페이지 테이블(parent->pml4)에서 현재 가상 주소(va)에
+     * 매핑된 물리 페이지의 주소를 찾아 parent_page에 저장 */
     parent_page = pml4_get_page(parent->pml4, va);
 
     /* 3. TODO: Allocate new PAL_USER page for the child and set result to
      *    TODO: NEWPAGE. */
+    /* 자식 프로세스가 부모 페이지의 내용을 복사하여 저장할 새로운 물리 페이지를
+     * 할당 */
+    newpage = palloc_get_page(PAL_USER);
 
     /* 4. TODO: Duplicate parent's page to the new page and
      *    TODO: check whether parent's page is writable or not (set WRITABLE
      *    TODO: according to the result). */
+    /* 페이지 테이블 엔트리(pte)에서 해당 페이지가 쓰기 가능한지(PTE_W 비트가
+     * 설정되어 있는지) 확인하여 writable 변수에 저장 */
+    writable = is_writable(pte);
+
+    if (writable == false)
+    {
+        writable = true;
+    }
+    memcpy(newpage, parent_page, PGSIZE);
 
     /* 5. Add new page to child's page table at address VA with WRITABLE
      *    permission. */
     if (!pml4_set_page(current->pml4, va, newpage, writable))
     {
         /* 6. TODO: if fail to insert page, do error handling. */
+        palloc_free_page(newpage);
+        return false;
     }
+
     return true;
 }
 #endif
@@ -121,22 +154,32 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux)
  * Hint) parent->tf does not hold the userland context of the process.
  *       That is, you are required to pass second argument of process_fork to
  *       this function. */
+/* 부모의 실행 컨텍스트를 복사하는 스레드 함수.
+ * 힌트) parent->tf는 프로세스의 유저랜드(사용자 영역) 컨텍스트를 담고 있지
+ * 않습니다. */
 static void __do_fork(void *aux)
 {
     struct intr_frame if_;
     struct thread *parent = (struct thread *) aux;
+    /* 이 시점에서는 자식 스레드가 current가 됨 */
     struct thread *current = thread_current();
     /* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-    struct intr_frame *parent_if;
+    struct intr_frame *parent_if = &parent->tf;
     bool succ = true;
 
     /* 1. Read the cpu context to local stack. */
+    /* 부모의 CPU 컨텍스트(레지스터 값 등)를 자식의 로컬 if_ 변수로 복사 */
     memcpy(&if_, parent_if, sizeof(struct intr_frame));
 
     /* 2. Duplicate PT */
+    /* 자식 프로세스만의 새로운 PML4(Page Map Level 4) 테이블을 생성 */
     current->pml4 = pml4_create();
+    /* PML4 생성 실패 시 오류 처리로 이동 */
     if (current->pml4 == NULL) goto error;
 
+    /* 새로운 프로세스(스레드)를 활성화 */
+    /* process_activate(current);를 호출하기 전까지는 CPU의 CR3 레지스터에는
+     * 여전히 부모 프로세스의 PML4 주소가 로드되어 있음 */
     process_activate(current);
 #ifdef VM
     supplemental_page_table_init(&current->spt);
@@ -150,10 +193,17 @@ static void __do_fork(void *aux)
      * TODO:       in include/filesys/file.h. Note that parent should not return
      * TODO:       from the fork() until this function successfully duplicates
      * TODO:       the resources of parent.*/
-
+    /* 파일 디스크립터 테이블, 열린 파일 객체 등 부모 프로세스의 다른 자원들을
+     * 자식에게 복사하는 코드가 들어가야 함 file_duplicate 함수를 사용하여 파일
+     * 객체의 참조 카운트를 증가시키는 방식으로 구현
+     * 자식의 복제가 완료될 때까지 부모가 fork()에서 반환하지 않도록
+     * 동기화 메커니즘을 사용해야 함*/
     process_init();
 
+    // sema_up(&parent->thread_sema);
     /* Finally, switch to the newly created process. */
+    /* 모든 복제 작업이 성공하면, do_iret 함수를 호출하여 if_에 저장된 CPU
+     * 컨텍스트로 점프 */
     if (succ) do_iret(&if_);
 error:
     thread_exit();
@@ -212,31 +262,29 @@ int process_exec(void *f_name)
  *
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
+/*
+ * "스레드 TID가 종료되기를 기다리고 해당 종료 상태를 반환합니다. 만약 커널에
+ * 의해 (즉, 예외로 인해 강제 종료된 경우) 종료되었다면, -1을 반환합니다. 만약
+ * TID가 유효하지 않거나, 호출하는 프로세스의 자식이 아니거나, 주어진 TID에 대해
+ * process_wait()가 이미 성공적으로 호출된 적이 있다면, 기다리지 않고 즉시 -1을
+ * 반환합니다.
+ * 이 함수는 문제 2-2에서 구현될 것입니다.
+ */
 int process_wait(tid_t child_tid UNUSED)
 {
-    /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
-     * XXX:       to add infinite loop here before
-     * XXX:       implementing the process_wait. */
-    thread_sleep(500);
-    // while (1)
-    // 	;
-    return -1;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
+/* 프로세스를 종료합니다. 이 함수는 thread_exit()에 의해 호출됩니다. */
 void process_exit(void)
 {
     struct thread *curr = thread_current();
     printf("%s: exit(%d)\n", curr->name, curr->tf.R.rax);
-    /* TODO: Your code goes here.
-     * TODO: Implement process termination message (see
-     * TODO: project2/process_termination.html).
-     * TODO: We recommend you to implement process resource cleanup here. */
-
     process_cleanup();
 }
 
 /* Free the current process's resources. */
+/* 현재 프로세스의 자원을 해제합니다. */
 static void process_cleanup(void)
 {
     struct thread *curr = thread_current();
@@ -269,9 +317,14 @@ static void process_cleanup(void)
 void process_activate(struct thread *next)
 {
     /* Activate thread's page tables. */
+    /* 다음 스레드의 PML4를 CPU의 페이지 테이블 기준 레지스터(CR3 레지스터)에
+     * 로드 */
+    /* 이렇게 해야 다음 스레드가 자신의 가상 메모리 공간을 사용할 수 있게 됨 */
     pml4_activate(next->pml4);
 
     /* Set thread's kernel stack for use in processing interrupts. */
+    /* 유저 모드에서 커널 모드로 전환될 때 사용될 커널 스택의 정보를 TSS에 설정
+     */
     tss_update(next);
 }
 
@@ -444,8 +497,6 @@ static bool load(const char *file_name, struct intr_frame *if_, char **argv,
     /* Start address. */
     if_->rip = ehdr.e_entry;
 
-    /* TODO: Your code goes here.
-     * TODO: Implement argument passing (see project2/argument_passing.html). */
     success = true;
 
 done:
