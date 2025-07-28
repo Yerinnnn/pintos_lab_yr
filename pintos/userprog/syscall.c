@@ -5,6 +5,7 @@
 
 #include "include/filesys/file.h"
 #include "include/filesys/filesys.h"
+#include "include/userprog/process.h"
 #include "intrinsic.h"
 #include "lib/kernel/console.h"
 #include "threads/flags.h"
@@ -19,13 +20,6 @@ static bool check_bad_addr();
 static int write_handler(int fd, const void *buffer, unsigned size);
 static int close_handler(int fd);
 struct file *process_get_file(int fd);
-
-struct file_fd
-{
-    int fd;
-    struct file *file;
-    struct list_elem elem;
-};
 
 static int write_handler(int fd, const void *buffer, unsigned size);
 
@@ -76,6 +70,40 @@ void syscall_handler(struct intr_frame *f UNUSED)
             curr->tf.R.rax = f->R.rdi;
             thread_exit();
         }
+        case SYS_FORK:
+        {
+            struct thread *t = thread_current();
+            // f :
+            // 현재 실행 중인 시스템 콜에서, CPU가 커널 모드로 진입했을 때
+            // 커널 스택에 저장한 인터럽트 프레임
+            // 사용자 프로그램이 시스템 콜을 호출한
+            // 직후의 레지스터 값들이 들어있음
+            // syscall_handler() 함수에서 현재 syscall 번호 및 인자를 확인하고,
+            // 결과를 f->R.rax에 저장하면, 이 값은 다시 사용자 공간으로 리턴될
+            // 때 쓰임
+
+            // t->tf :
+            // 각 스레드 구조체 내부에 가지고 있는 해당 스레드의
+            // 인터럽트 프레임 저장 공간
+            // 부모 스레드의 현재 실행 컨텍스트를 복제
+            // 스레드가 다시 스케줄링되거나, fork될 때 필요한 사용자 모드 상태
+            // 정보를 저장
+            // fork 후 자식이 부모랑 똑같은 상태로 실행 재개
+            f->R.rax = process_fork(f->R.rdi, &t->tf);
+            break;
+        }
+        case SYS_EXEC:
+        {
+            printf("exec syscall called!!!\n");
+            break;
+        }
+        case SYS_WAIT:
+        {
+            struct thread *t = thread_current();
+            printf("wait syscall called!!!\n");
+            process_wait(f->R.rdi);
+            break;
+        }
         case SYS_CREATE:
         {
             const char *open_filename = (const char *) f->R.rdi;
@@ -93,6 +121,11 @@ void syscall_handler(struct intr_frame *f UNUSED)
                 f->R.rax = filesys_create(open_filename, filesize);
                 break;
             }
+        }
+        case SYS_REMOVE:
+        {
+            printf("remove syscall called!!!\n");
+            break;
         }
         case SYS_OPEN:
         {
@@ -145,14 +178,22 @@ void syscall_handler(struct intr_frame *f UNUSED)
         }
         case SYS_WRITE:
         {
-            // 인터럽트 프레임(struct intr_frame *f)을 통해 사용자
-            // 프로그램의 레지스터 상태와 시스템 콜 번호 및 인자들을 읽어옴
-            // f->R.rax : 시스템 콜 반환값 (리턴값 저장)
-            // f->R.rdi : 첫 번째 인자 (fd)
-
+            // 인터럽트 프레임(struct intr_frame *f)을 통해 사용자 프로그램의
+            // 레지스터 상태와 시스템 콜 번호 및 인자들을 읽어옴 f->R.rax :
+            // 시스템 콜 반환값 (리턴값 저장) f->R.rdi : 첫 번째 인자 (fd)
             // f->R.rsi : 두 번째 인자 (buffer)
             // f->R.rdx : 세 번째 인자 (size)
             f->R.rax = write_handler(f->R.rdi, f->R.rsi, f->R.rdx);
+            break;
+        }
+        case SYS_SEEK:
+        {
+            printf("seek seek called!!!\n");
+            break;
+        }
+        case SYS_TELL:
+        {
+            printf("tell tell called!!!\n");
             break;
         }
         case SYS_CLOSE:
@@ -173,11 +214,6 @@ static bool check_bad_addr(const char *vaddr, struct thread *t)
 /* 파일 또는 STDOUT으로 쓰기 */
 static int write_handler(int fd, const void *buffer, unsigned size)
 {
-    // if (!is_user_vaddr(buffer) ||
-    //     (size > 0 && !is_user_vaddr(buffer + size - 1)))
-    // {
-    //     thread_exit();
-
     struct thread *current_thread = thread_current();
 
     if (!is_fd_writable(fd) || check_bad_addr(buffer, current_thread) == NULL)
@@ -186,7 +222,6 @@ static int write_handler(int fd, const void *buffer, unsigned size)
         thread_exit();
     }
 
-    // buffer를 fd에 쓰기
     if (!(is_user_vaddr(buffer) && is_user_vaddr(buffer + size)))
     {
         return -1;
@@ -194,18 +229,17 @@ static int write_handler(int fd, const void *buffer, unsigned size)
 
     switch (fd)
     {
-        case 1:
+        case 1: /* fd가 1이면 표준 출력 (파일이 아니라 콘솔로 출력) */
+        {
             putbuf(buffer, size);
-            break;
-
-        default:
+        }
+        default: /* open()으로 연 파일이 할당된 경우 */
+        {
             struct file *file = process_get_file(fd);
             if (file == NULL) return -1;
             return file_write(file, buffer, size);
-            break;
+        }
     }
-
-    return -1;
 }
 
 static int close_handler(int fd)

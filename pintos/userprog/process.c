@@ -99,6 +99,7 @@ tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED)
 #ifndef VM
 /* Duplicate the parent's address space by passing this function to the
  * pml4_for_each. This is only for the project 2. */
+// 이 함수는 pml4_for_each에 전달되어 부모의 주소 공간을 복제합니다.
 static bool duplicate_pte(uint64_t *pte, void *va, void *aux)
 {
     struct thread *current = thread_current();
