@@ -196,6 +196,22 @@ void thread_print_stats(void)
          The code provided sets the new thread's `priority' member to
          PRIORITY, but no actual priority scheduling is implemented.
          Priority scheduling is the goal of Problem 1-3. */
+/*
+주어진 초기 우선순위(PRIORITY)를 가지며, AUX를 인자로 전달하여 FUNCTION을
+실행하는 NAME이라는 이름의 새로운 커널 스레드를 생성하고, 이를 준비 큐(ready
+queue)에 추가합니다. 새로운 스레드의 스레드 식별자(thread identifier)를
+반환하며, 생성에 실패하면 TID_ERROR를 반환합니다.
+
+만약 thread_start()가 호출되었다면, 새로운 스레드는 thread_create()가 반환되기
+전에 스케줄링될 수 있습니다. 심지어 thread_create()가 반환되기 전에 종료될 수도
+있습니다. 반대로, 원래 스레드는 새로운 스레드가 스케줄링되기 전에 얼마든지
+오랫동안 실행될 수 있습니다. 실행 순서를 보장해야 한다면 세마포어 또는 다른
+형태의 동기화를 사용해야 합니다.
+
+제공된 코드는 새로운 스레드의 priority 멤버를 PRIORITY로 설정하지만, 실제
+우선순위 스케줄링은 구현되어 있지 않습니다. 우선순위 스케줄링은 문제 1-3의
+목표입니다.
+*/
 tid_t thread_create(const char *name, int priority, thread_func *function,
                     void *aux)
 {
@@ -238,19 +254,6 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
     /* compare the priorities of the currently running thread
      * and the newly inserted one. Yield the CPU if the newly
      * arriving thread has higer priority*/
-
-    enum intr_level old_level = intr_disable();
-
-    if (!list_empty(&ready_list))
-    {
-        if (thread_current()->priority <
-            list_entry(list_front(&ready_list), struct thread, elem))
-        {
-            thread_yield();
-        }
-    }
-
-    intr_set_level(old_level);
 
     return tid;
 }
@@ -567,6 +570,13 @@ static void init_thread(struct thread *t, const char *name, int priority)
     t->priority = priority;
     t->magic = THREAD_MAGIC;
     t->next_fd = 2;
+
+    t->parent = NULL;
+    list_init(&t->children);
+    sema_init(&t->wait_sema, 0);
+    sema_init(&t->exit_sema, 0);
+    t->exit_status = 0;
+    t->is_waited = false;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

@@ -19,6 +19,8 @@
         "*.inc": "c",
         "lib.h": "c",
         "inode.h": "c",
-        "interrupt.h": "c"
+        "interrupt.h": "c",
+        "atomic": "c",
+        "main.h": "c"
     },
 }

@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 
+#include "synch.h"
 #include "threads/interrupt.h"
 #ifdef VM
 #include "vm/vm.h"
@@ -28,6 +29,7 @@ typedef int tid_t;
 #define PRI_MIN 0      /* Lowest priority. */
 #define PRI_DEFAULT 31 /* Default priority. */
 #define PRI_MAX 63     /* Highest priority. */
+#define FD_COUNT 128
 
 /* Global tick - min value of sleeping thread's wakeup tick */
 extern int64_t min_tick;
@@ -101,8 +103,20 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem; /* List element. */
 
-    struct uni_file *file_descriptor_table[128];
+    struct uni_file *file_descriptor_table[FD_COUNT];
     int next_fd; /* next_fd */
+
+    struct thread *parent;  // 부모 프로세스
+    struct list children;   // 자식 리스트
+    struct list_elem child_elem;
+
+    struct semaphore wait_sema;
+    struct semaphore exit_sema;
+
+    int exit_status;
+
+    bool is_waited;  // 중복된 wait() 호출 방지
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint64_t *pml4; /* Page map level 4 */

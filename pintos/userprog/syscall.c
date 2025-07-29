@@ -5,6 +5,7 @@
 
 #include "include/filesys/file.h"
 #include "include/filesys/filesys.h"
+#include "include/userprog/process.h"
 #include "intrinsic.h"
 #include "lib/kernel/console.h"
 #include "threads/flags.h"
@@ -60,6 +61,10 @@ void syscall_init(void)
 // 어셈블리 코드(syscall-entry.S)로부터 제어를 넘겨받음
 void syscall_handler(struct intr_frame *f UNUSED)
 {
+    // rdi : name
+    // rsi : parent_if (부모의 intr_frame 주소)
+    // rax : 반환값 저장용
+
     // 유저 스택에서 시스템콜 번호 꺼내기
     int syscall_number = f->R.rax;
 
@@ -70,11 +75,40 @@ void syscall_handler(struct intr_frame *f UNUSED)
             power_off();
             break;
         }
+        case SYS_FORK:
+        {
+            f->R.rax = process_fork(f->R.rdi, f);
+            break;
+        }
+        case SYS_EXEC:
+        {
+            const char *cmd_line = (const char *) f->R.rdi;
+            struct thread *curr = thread_current();
+
+            // 주소 검증
+            if (cmd_line == NULL || !is_user_vaddr(cmd_line) ||
+                check_bad_addr(cmd_line, curr) == NULL)
+            {
+                curr->tf.R.rax = -1;
+                thread_exit();
+            }
+
+            // process_exec 호출 (exec은 성공하면 반환하지 않음)
+            int result = process_exec(cmd_line);
+            f->R.rax = result;
+            break;
+        }
+        case SYS_WAIT:
+        {
+            f->R.rax = process_wait(f->R.rdi);
+            break;
+        }
         case SYS_EXIT:
         {
             struct thread *curr = thread_current();
             curr->tf.R.rax = f->R.rdi;
             thread_exit();
+            break;
         }
         case SYS_CREATE:
         {
@@ -212,7 +246,7 @@ static int close_handler(int fd)
 {
     struct thread *current_thread = thread_current();
 
-    if (fd < 2 || fd > 127)
+    if (fd < 2 || fd >= FD_COUNT)
     {
         return -1;
     }
@@ -223,8 +257,15 @@ static int close_handler(int fd)
     }
     else
     {
+        struct uni_file *fd_entry = current_thread->file_descriptor_table[fd];
+
+        if (fd_entry->fd_type == FD_TYPE_FILE && fd_entry->fd_ptr != NULL)
+        {
+            file_close(fd_entry->fd_ptr);
+        }
+
+        free(fd_entry);
         current_thread->file_descriptor_table[fd] = NULL;
-        free(current_thread->file_descriptor_table[fd]);
         return 0;
     }
 }
