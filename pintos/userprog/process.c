@@ -51,6 +51,7 @@ static void process_init(void)
  * Notice that THIS SHOULD BE CALLED ONCE. */
 tid_t process_create_initd(const char *file_name)
 {
+    char fname_buf[16];
     char *fn_copy;
     char *unused_ptr;
     tid_t tid;
@@ -60,9 +61,11 @@ tid_t process_create_initd(const char *file_name)
     if (fn_copy == NULL) return TID_ERROR;
     strlcpy(fn_copy, file_name, PGSIZE);
 
+    strlcpy(fname_buf, file_name, (strcspn(file_name, " ") + 1));
+
     /* Create a new thread to execute FILE_NAME. */
-    char *token = strtok_r(fn_copy, " ", &unused_ptr);
-    tid = thread_create(token, PRI_DEFAULT, initd, fn_copy);
+    // char *token = strtok_r(fn_copy, " ", &unused_ptr);
+    tid = thread_create(fname_buf, PRI_DEFAULT, initd, fn_copy);
     if (tid == TID_ERROR) palloc_free_page(fn_copy);
     return tid;
 }
@@ -90,7 +93,7 @@ tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED)
     /* Clone current thread to new thread.*/
     struct fork_info *info = malloc(sizeof(struct fork_info));
     info->parent = thread_current();  // 부모 스레드
-    info->parent_if = &if_;
+    info->parent_if = if_;
 
     tid_t tid = thread_create(name, PRI_DEFAULT, __do_fork, info);
 
