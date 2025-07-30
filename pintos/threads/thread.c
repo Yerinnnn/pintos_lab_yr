@@ -255,6 +255,9 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
      * and the newly inserted one. Yield the CPU if the newly
      * arriving thread has higer priority*/
 
+    // 현재 스레드 (main 스레드)의 자식에, 방금 만들어진 t 스레드 추가
+    list_push_back(&thread_current()->children, &t->child_elem);
+
     return tid;
 }
 

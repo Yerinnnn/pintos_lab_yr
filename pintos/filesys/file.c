@@ -49,6 +49,8 @@ struct file *file_reopen(struct file *file)
 */
 struct file *file_duplicate(struct file *file)
 {
+    if (file == NULL) return NULL;
+
     struct file *nfile = file_open(inode_reopen(file->inode));
     if (nfile)
     {

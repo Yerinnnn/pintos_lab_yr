@@ -197,18 +197,40 @@ static void __do_fork(void *aux)
 
     for (int fd = 0; fd < FD_COUNT; fd++)
     {
-        struct file *file = parent->file_descriptor_table[fd];
-        if (file != NULL)
+        struct uni_file *parent_file = parent->file_descriptor_table[fd];
+        if (parent_file != NULL)
         {
-            if (current->file_descriptor_table[fd] != NULL)
-            {
-                current->file_descriptor_table[fd] = file_duplicate(file);
-            }
-            else
+            struct uni_file *child_file = malloc(sizeof(struct uni_file));
+            if (child_file == NULL)
             {
                 succ = false;
                 break;
             }
+
+            child_file->fd_type = parent_file->fd_type;
+
+            if (parent_file->fd_type == FD_TYPE_FILE)
+            {
+                child_file->fd_ptr =
+                    file_duplicate((struct file *) parent_file->fd_ptr);
+                if (child_file->fd_ptr == NULL)
+                {
+                    free(child_file);
+                    succ = false;
+                    break;
+                }
+            }
+            else if (parent_file->fd_type == FD_TYPE_DIR)
+            {
+                child_file->fd_ptr = NULL;  // 일단 NULL 처리
+            }
+            else
+            {
+                // STDIN/STDOUT
+                child_file->fd_ptr = NULL;
+            }
+
+            current->file_descriptor_table[fd] = child_file;
         }
     }
 
@@ -298,17 +320,14 @@ int process_wait(tid_t child_tid UNUSED)
 
     struct list_elem *e;
 
-    printf("aaaa!!!!!!!!!!!!\n");
-
     // 자식 리스트에서 child_tid 찾기
     for (e = list_begin(&curr->children); e != list_end(&curr->children);
          e = list_next(e))
     {
-        printf("bbbb!!!!!!!!!!!!\n");
-        struct thread *t = list_entry(e, struct thread, child_elem);
-        if (t->tid == child_tid)
+        struct thread *child_t = list_entry(e, struct thread, child_elem);
+        if (child_t->tid == child_tid)
         {
-            child = t;
+            child = child_t;
             break;
         }
     }
@@ -316,7 +335,6 @@ int process_wait(tid_t child_tid UNUSED)
     // 없거나, child의 부모가 이미 wait()을 호출했었다면
     if (child == NULL || child->is_waited)
     {
-        thread_sleep(300);
         return -1;
     }
 
